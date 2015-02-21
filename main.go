@@ -92,6 +92,7 @@ type Config struct {
 	Channel           string
 	Server            string
 	Nick, Ident, Name string
+	HostPort          string
 }
 
 // Maps GitHub event strings (e.g. for PRQs, issues) to colors, for make
@@ -253,7 +254,7 @@ func main() {
 			}
 		}
 	})
-	go http.ListenAndServe(":1337", nil)
+	go http.ListenAndServe(conf.HostPort, nil)
 	for {
 
 		select {

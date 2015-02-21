@@ -1,5 +1,9 @@
+## IRC
 Nick = "Capt'nHook"
 Ident = "hook"
 Name = "The Captain"
 Server = "chat.freenode.net:6667"
 Channel = "#piracy"
+
+## Webhooks
+HostPort = ":1337" # Where to listen for webhooks
