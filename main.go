@@ -106,15 +106,17 @@ var act2color = map[string]MIRCColorType{
 // So Github's sweet small urls in their official webhook payloads are
 // available for anyone to use. Who knew? Form posts to git.io, gets a short
 // URL in a location header back. Cool.
-func ShortenGHUrl(url2shorten string) (string, error) {
+func ShortenGHUrl(url2shorten string) (shorturl string, err error) {
 	resp, err := http.PostForm("http://git.io", url.Values{"url": {url2shorten}})
 	if err != nil {
-		fmt.Println(err)
+		return
 	}
 	if resp.StatusCode != 201 {
-		return "", errors.New("git.io returned non 201 status: " + resp.Status)
+		err = errors.New("git.io returned non 201 status: " + resp.Status)
+		return
 	}
-	return resp.Header.Get("Location"), nil
+	shorturl = resp.Header.Get("Location")
+	return
 }
 
 func loadconfigfromfile(conf *Config, conffile string) (err error) {
