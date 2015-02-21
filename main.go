@@ -77,7 +77,7 @@ type IssueEvent struct {
 type PRQEvent struct {
 	Action     string
 	Sender     User
-	PRQ        PRQ
+	PRQ        PRQ `json:"pull_request"`
 	Repository Repo
 }
 
@@ -199,7 +199,7 @@ func main() {
 						logger.Println(err)
 					}
 					ircmsgs <- fmt.Sprintf("[%s] PRQ #%d %s by %s: %s. %s",
-						event.Repository.Name,
+						MIRCColor(event.Repository.Name, ColorPurple),
 						event.PRQ.Number,
 						MIRCColor(event.Action, act2color[event.Action]),
 						event.Sender.Login,
@@ -218,7 +218,7 @@ func main() {
 						logger.Println(err)
 					}
 					ircmsgs <- fmt.Sprintf("[%s] Issue #%d %s by %s: %s. %s",
-						event.Repository.Name,
+						MIRCColor(event.Repository.Name, ColorPurple),
 						event.Issue.Number,
 						MIRCColor(event.Action, act2color[event.Action]),
 						event.Sender.Login,
@@ -239,7 +239,7 @@ func main() {
 					ircmsgs <- fmt.Sprintf("%s %s %s: %s",
 						event.Sender.Login,
 						MIRCColor(event.Action, act2color[event.Action]),
-						event.Repository.Name,
+						MIRCColor(event.Repository.Name, ColorPurple),
 						url)
 				}
 			}
