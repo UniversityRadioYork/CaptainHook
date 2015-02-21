@@ -1,0 +1,5 @@
+Nick = "Capt'nHook"
+Ident = "hook"
+Name = "The Captain"
+Server = "chat.freenode.net:6667"
+Channel = "#piracy"

@@ -89,10 +89,9 @@ type RepositoryEvent struct {
 
 // CaptainHook's config struct, TOML is decoded into this
 type Config struct {
-	Channel string
-	User    string
-	Nick    string
-	Server  string
+	Channel           string
+	Server            string
+	Nick, Ident, Name string
 }
 
 // Maps GitHub event strings (e.g. for PRQs, issues) to colors, for make
@@ -118,22 +117,29 @@ func ShortenGHUrl(url2shorten string) (string, error) {
 	return resp.Header.Get("Location"), nil
 }
 
+func loadconfigfromfile(conf *Config, conffile string) (err error) {
+	var rawconfig []byte
+	if rawconfig, err = ioutil.ReadFile(conffile); err != nil {
+		return
+	}
+	if _, err = toml.Decode(string(rawconfig), &conf); err != nil {
+		return
+	}
+	return
+}
+
 func main() {
 	logger := log.New(os.Stdout, "", log.Lshortfile)
-	rawconfig, err := ioutil.ReadFile("config.toml")
-	if err != nil {
-		logger.Fatal(err)
-	}
 	var conf Config
-	if _, err := toml.Decode(string(rawconfig), &conf); err != nil {
-		logger.Fatal(err)
+	if err := loadconfigfromfile(&conf, "config.toml"); err != nil {
+		logger.Fatal("Config load failed!" + err.Error())
 	}
 	ircmsgs := make(chan string, 10)
 
 	sigs := make(chan os.Signal)
 	signal.Notify(sigs, syscall.SIGINT)
 
-	ircconf := goirc.NewConfig(conf.Nick)
+	ircconf := goirc.NewConfig(conf.Nick, conf.Ident, conf.Name)
 	ircconf.Server = conf.Server
 	irc := goirc.Client(ircconf)
 
