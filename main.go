@@ -11,7 +11,6 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -20,33 +19,32 @@ import (
 import goirc "github.com/fluffle/goirc/client"
 import "github.com/BurntSushi/toml"
 
-type MIRCColorType int
+// These are in string format as not having a leading zero can mess
+// up some clients when the string to colorize starts with a number.
+type MIRCColor string
 
 const (
-	ColorWhite MIRCColorType = iota
-	ColorBlack
-	ColorBlue
-	ColorGreen
-	ColorRed
-	ColorBrown
-	ColorPurple
-	ColorOrange
-	ColorYellow
-	ColorLightGreen
-	ColorCyan
-	ColorLightCyan
-	ColorLightBlue
-	ColorPink
-	ColorGrey
-	ColorLightGrey
+	ColorWhite      MIRCColor = "00"
+	ColorBlack                = "01"
+	ColorBlue                 = "02"
+	ColorGreen                = "03"
+	ColorRed                  = "04"
+	ColorBrown                = "05"
+	ColorPurple               = "06"
+	ColorOrange               = "07"
+	ColorYellow               = "08"
+	ColorLightGreen           = "09"
+	ColorCyan                 = "10"
+	ColorLightCyan            = "11"
+	ColorLightBlue            = "12"
+	ColorPink                 = "13"
+	ColorGrey                 = "14"
+	ColorLightGrey            = "15"
 )
 
-// Take a string and color and return the string surrounded by MIRC color control codes as
-// defined at http://www.mirc.co.uk/colors.html. 99 (transparent) is explicitly
-// used for the background color, otherwise strings starting with numbers don't
-// work.
-func MIRCColor(in string, fg MIRCColorType) string {
-	return string('\u0003') + strconv.Itoa(int(fg)) + "," + "99" + in + string('\u0003')
+// Take a string and insert irc formatting codes around it.
+func IrcColorize(in string, fg MIRCColor) string {
+	return string('\x03') + string(fg) + in + string('\x0F')
 }
 
 // Various (partial!) Github object structs, JSON is parsed into these
@@ -102,7 +100,7 @@ type Config struct {
 
 // Maps GitHub event strings (e.g. for PRQs, issues) to colors, for make
 // benefit beautiful IRC channel times/optical assault
-var act2color = map[string]MIRCColorType{
+var act2color = map[string]MIRCColor{
 	"opened":   ColorGreen,
 	"reopened": ColorGreen,
 	"closed":   ColorRed,
@@ -210,9 +208,9 @@ func main() {
 						logger.Println(err)
 					}
 					ircmsgs <- fmt.Sprintf("[%s] PRQ #%d %s by %s: %s. %s",
-						MIRCColor(event.Repository.Name, ColorPurple),
+						IrcColorize(event.Repository.Name, ColorPurple),
 						event.PRQ.Number,
-						MIRCColor(event.Action, act2color[event.Action]),
+						IrcColorize(event.Action, act2color[event.Action]),
 						event.Sender.Login,
 						event.PRQ.Title,
 						url)
@@ -229,9 +227,9 @@ func main() {
 						logger.Println(err)
 					}
 					ircmsgs <- fmt.Sprintf("[%s] Issue #%d %s by %s: %s. %s",
-						MIRCColor(event.Repository.Name, ColorPurple),
+						IrcColorize(event.Repository.Name, ColorPurple),
 						event.Issue.Number,
-						MIRCColor(event.Action, act2color[event.Action]),
+						IrcColorize(event.Action, act2color[event.Action]),
 						event.Sender.Login,
 						event.Issue.Title,
 						url)
@@ -249,8 +247,8 @@ func main() {
 					}
 					ircmsgs <- fmt.Sprintf("%s %s %s: %s",
 						event.Sender.Login,
-						MIRCColor(event.Action, act2color[event.Action]),
-						MIRCColor(event.Repository.Name, ColorPurple),
+						IrcColorize(event.Action, act2color[event.Action]),
+						IrcColorize(event.Repository.Name, ColorPurple),
 						url)
 				}
 			}
