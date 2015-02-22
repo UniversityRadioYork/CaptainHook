@@ -40,8 +40,12 @@ const (
 	ColorLightGrey
 )
 
-func MIRCColor(in string, col MIRCColorType) string {
-	return string('\u0003') + strconv.Itoa(int(col)) + in + string('\u0003')
+// Take a string and color and return the string surrounded by MIRC color control codes as
+// defined at http://www.mirc.co.uk/colors.html. 99 (transparent) is explicitly
+// used for the background color, otherwise strings starting with numbers don't
+// work.
+func MIRCColor(in string, fg MIRCColorType) string {
+	return string('\u0003') + strconv.Itoa(int(fg)) + "," + "99" + in + string('\u0003')
 }
 
 // Various (partial!) Github object structs, JSON is parsed into these
