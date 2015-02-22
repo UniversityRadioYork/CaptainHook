@@ -171,8 +171,9 @@ func main() {
 	irc.HandleFunc("PRIVMSG", func(conn *goirc.Conn, line *goirc.Line) {
 		if strings.HasPrefix(line.Text(), conf.Nick+":") { // Someone mentioned us
 			var output string
-			switch strings.TrimSpace(
-				strings.TrimPrefix(line.Text(), conf.Nick+":")) {
+			mention := strings.TrimSpace(
+				strings.TrimPrefix(line.Text(), conf.Nick+":"))
+			switch mention {
 			case "yo", "hi", "sup", "hello", "ohai", "wb", "evening", "morning", "afternoon":
 				output = "Well met, " + line.Nick
 			case "reload", "restart", "reboot", "eat toml":
@@ -183,9 +184,9 @@ func main() {
 	})
 
 	irc.HandleFunc("KICK", func(conn *goirc.Conn, line *goirc.Line) {
-		logger.Println(";_; just got kicked")
+		// This responds to all kicks at the moment... so, don't make any witty
+		// remarks, just rejoin in case it was us who got kicked.
 		conn.Join(conf.Channel)
-		conn.Privmsg(conf.Channel, line.Nick+": >:(")
 	})
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
