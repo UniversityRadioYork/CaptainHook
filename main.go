@@ -168,20 +168,15 @@ func main() {
 	})
 
 	irc.HandleFunc("PRIVMSG", func(conn *goirc.Conn, line *goirc.Line) {
-		if strings.HasPrefix(line.Text(), "my") {
-			conn.Privmsg(conf.Channel, strings.Replace(line.Text(), "my", MIRCColor("muh", ColorRed), -1))
-		} else {
+		if strings.HasPrefix(line.Text(), conf.Nick+":") { // Someone mentioned us
 			var output string
-			switch strings.Replace(line.Text(), conf.Nick+": ", "", -1) {
-			case "colours!!!":
-				output = ""
-				for i, c := range "RAINBOWS" {
-					output += MIRCColor(string(c), MIRCColorType(i+2))
-				}
-			case "yo", "hi", "sup", "hello", "ohai":
-				output = "Salutations " + line.Nick
+			switch strings.TrimSpace(
+				strings.TrimPrefix(line.Text(), conf.Nick+":")) {
+			case "yo", "hi", "sup", "hello", "ohai", "wb", "evening", "morning", "afternoon":
+				output = "Well met, " + line.Nick
+			case "reload", "restart", "reboot", "eat toml":
+				// Reload config
 			}
-
 			conn.Privmsg(conf.Channel, output)
 		}
 	})
@@ -189,7 +184,7 @@ func main() {
 	irc.HandleFunc("KICK", func(conn *goirc.Conn, line *goirc.Line) {
 		logger.Println(";_; just got kicked")
 		conn.Join(conf.Channel)
-		conn.Privmsg(conf.Channel, line.Nick+": Muting notifications for 1 hour, I assume that's what you were trying to achieve. Asshole.")
+		conn.Privmsg(conf.Channel, line.Nick+": >:(")
 	})
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
