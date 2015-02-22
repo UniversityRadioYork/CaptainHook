@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -137,8 +138,10 @@ func loadconfigfromfile(conf *Config, conffile string) (err error) {
 
 func main() {
 	logger := log.New(os.Stdout, "", log.Lshortfile)
+	confpath := flag.String("config", "config.toml", "The config file path")
+	flag.Parse()
 	var conf Config
-	if err := loadconfigfromfile(&conf, "config.toml"); err != nil {
+	if err := loadconfigfromfile(&conf, *confpath); err != nil {
 		logger.Fatal("Config load failed!" + err.Error())
 	}
 	ircmsgs := make(chan string, 10)
