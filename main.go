@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/hmac"
+	"crypto/sha1"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -96,6 +98,7 @@ type Config struct {
 	Server            string
 	Nick, Ident, Name string
 	HostPort          string
+	GHSecret          string // The Github webhook secret
 }
 
 // Maps GitHub event strings (e.g. for PRQs, issues) to colors, for make
@@ -132,6 +135,13 @@ func loadconfigfromfile(conf *Config, conffile string) (err error) {
 		return
 	}
 	return
+}
+
+func CheckHMAC(message, reqMAC, key []byte) bool {
+	mac := hmac.New(sha1.New, key)
+	mac.Write(message)
+	expectedMAC := mac.Sum(nil)
+	return hmac.Equal([]byte(reqMAC), expectedMAC) // It's the return of the mac
 }
 
 func main() {
@@ -194,65 +204,69 @@ func main() {
 		if err != nil {
 			fmt.Println(err)
 		}
-		if ev := r.Header.Get("X-Github-Event"); ev != "" {
-			switch ev {
-			case "pull_request":
-				var event PRQEvent
-				if err := json.Unmarshal(body, &event); err != nil {
-					logger.Println(err)
-				}
-				switch event.Action {
-				case "opened", "closed", "reopened":
-					logger.Println(event.PRQ.HTMLURL)
-					url, err := ShortenGHUrl(event.PRQ.HTMLURL)
-					if err != nil {
+		if reqMAC := []byte(r.Header.Get("X-Hub-Signature")); CheckHMAC(body, reqMAC, []byte(conf.GHSecret)) {
+			if ev := r.Header.Get("X-Github-Event"); ev != "" {
+				switch ev {
+				case "pull_request":
+					var event PRQEvent
+					if err := json.Unmarshal(body, &event); err != nil {
 						logger.Println(err)
 					}
-					ircmsgs <- fmt.Sprintf("[%s] PRQ #%d %s by %s: %s. %s",
-						IrcColorize(event.Repository.Name, ColorPurple),
-						event.PRQ.Number,
-						IrcColorize(event.Action, act2color[event.Action]),
-						event.Sender.Login,
-						event.PRQ.Title,
-						url)
-				}
-			case "issues":
-				var event IssueEvent
-				if err := json.Unmarshal(body, &event); err != nil {
-					logger.Println(err)
-				}
-				switch event.Action {
-				case "opened", "closed", "reopened":
-					url, err := ShortenGHUrl(event.Issue.HTMLURL)
-					if err != nil {
+					switch event.Action {
+					case "opened", "closed", "reopened":
+						logger.Println(event.PRQ.HTMLURL)
+						url, err := ShortenGHUrl(event.PRQ.HTMLURL)
+						if err != nil {
+							logger.Println(err)
+						}
+						ircmsgs <- fmt.Sprintf("[%s] PRQ #%d %s by %s: %s. %s",
+							IrcColorize(event.Repository.Name, ColorPurple),
+							event.PRQ.Number,
+							IrcColorize(event.Action, act2color[event.Action]),
+							event.Sender.Login,
+							event.PRQ.Title,
+							url)
+					}
+				case "issues":
+					var event IssueEvent
+					if err := json.Unmarshal(body, &event); err != nil {
 						logger.Println(err)
 					}
-					ircmsgs <- fmt.Sprintf("[%s] Issue #%d %s by %s: %s. %s",
-						IrcColorize(event.Repository.Name, ColorPurple),
-						event.Issue.Number,
-						IrcColorize(event.Action, act2color[event.Action]),
-						event.Sender.Login,
-						event.Issue.Title,
-						url)
-				}
-			case "repository":
-				var event RepositoryEvent
-				if err := json.Unmarshal(body, &event); err != nil {
-					logger.Println(err)
-				}
-				switch event.Action {
-				case "created":
-					url, err := ShortenGHUrl(event.Repository.HTMLURL)
-					if err != nil {
+					switch event.Action {
+					case "opened", "closed", "reopened":
+						url, err := ShortenGHUrl(event.Issue.HTMLURL)
+						if err != nil {
+							logger.Println(err)
+						}
+						ircmsgs <- fmt.Sprintf("[%s] Issue #%d %s by %s: %s. %s",
+							IrcColorize(event.Repository.Name, ColorPurple),
+							event.Issue.Number,
+							IrcColorize(event.Action, act2color[event.Action]),
+							event.Sender.Login,
+							event.Issue.Title,
+							url)
+					}
+				case "repository":
+					var event RepositoryEvent
+					if err := json.Unmarshal(body, &event); err != nil {
 						logger.Println(err)
 					}
-					ircmsgs <- fmt.Sprintf("%s %s %s: %s",
-						event.Sender.Login,
-						IrcColorize(event.Action, act2color[event.Action]),
-						IrcColorize(event.Repository.Name, ColorPurple),
-						url)
+					switch event.Action {
+					case "created":
+						url, err := ShortenGHUrl(event.Repository.HTMLURL)
+						if err != nil {
+							logger.Println(err)
+						}
+						ircmsgs <- fmt.Sprintf("%s %s %s: %s",
+							event.Sender.Login,
+							IrcColorize(event.Action, act2color[event.Action]),
+							IrcColorize(event.Repository.Name, ColorPurple),
+							url)
+					}
 				}
 			}
+		} else {
+			logger.Println("Invalid/missing HMAC in request")
 		}
 	})
 	go http.ListenAndServe(conf.HostPort, nil)
