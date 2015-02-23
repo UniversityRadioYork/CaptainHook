@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/hmac"
 	"crypto/sha1"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -142,7 +143,7 @@ func CheckHMAC(message, reqMAC, key []byte) bool {
 	mac := hmac.New(sha1.New, key)
 	mac.Write(message)
 	expectedMAC := mac.Sum(nil)
-	return hmac.Equal([]byte(reqMAC), expectedMAC) // It's the return of the mac
+	return hmac.Equal(reqMAC, expectedMAC) // It's the return of the mac
 }
 
 func main() {
@@ -205,7 +206,11 @@ func main() {
 		if err != nil {
 			fmt.Println(err)
 		}
-		if reqMAC := []byte(r.Header.Get("X-Hub-Signature")); CheckHMAC(body, reqMAC, []byte(conf.GHSecret)) {
+		reqMAC, err := hex.DecodeString(strings.Split(r.Header.Get("X-Hub-Signature"), "=")[1])
+		if err != nil {
+			logger.Println("Error decoding HMAC header: " + err.Error())
+		}
+		if CheckHMAC(body, reqMAC, []byte(conf.GHSecret)) {
 			if ev := r.Header.Get("X-Github-Event"); ev != "" {
 				switch ev {
 				case "pull_request":
