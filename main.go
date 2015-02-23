@@ -71,6 +71,7 @@ type PRQ struct {
 	Number  int
 	Title   string
 	HTMLURL string `json:"html_url"`
+	Merged  bool
 }
 
 type IssueEvent struct {
@@ -225,10 +226,17 @@ func main() {
 						if err != nil {
 							logger.Println(err)
 						}
+						// PRQs are a bit special -_-
+						// The PRQ has a 'merged' key instead of a merged
+						// event, so we explicitly check for that.
+						action := IrcColorize(event.Action, act2color[event.Action])
+						if event.PRQ.Merged {
+							action = IrcColorize("Merged", ColorBlue)
+						}
 						ircmsgs <- fmt.Sprintf("[%s] PRQ #%d %s by %s: %s. %s",
 							IrcColorize(event.Repository.Name, ColorPurple),
 							event.PRQ.Number,
-							IrcColorize(event.Action, act2color[event.Action]),
+							action,
 							event.Sender.Login,
 							event.PRQ.Title,
 							url)
