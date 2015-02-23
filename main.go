@@ -205,7 +205,7 @@ func main() {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
-			fmt.Println(err)
+			logger.Println("Error reading response body: " + err.Error())
 		}
 		reqMAC, err := hex.DecodeString(strings.Split(r.Header.Get("X-Hub-Signature"), "=")[1])
 		if err != nil {
@@ -217,14 +217,14 @@ func main() {
 				case "pull_request":
 					var event PRQEvent
 					if err := json.Unmarshal(body, &event); err != nil {
-						logger.Println(err)
+						logger.Println("Error unmarshalling JSON: " + err.Error())
 					}
 					switch event.Action {
 					case "opened", "closed", "reopened":
 						logger.Println(event.PRQ.HTMLURL)
 						url, err := ShortenGHUrl(event.PRQ.HTMLURL)
 						if err != nil {
-							logger.Println(err)
+							logger.Println("Error shortening URL: " + err.Error())
 						}
 						// PRQs are a bit special -_-
 						// The PRQ has a 'merged' key instead of a merged
@@ -250,7 +250,7 @@ func main() {
 					case "opened", "closed", "reopened":
 						url, err := ShortenGHUrl(event.Issue.HTMLURL)
 						if err != nil {
-							logger.Println(err)
+							logger.Println("Error shortening URL: " + err.Error())
 						}
 						ircmsgs <- fmt.Sprintf("[%s] Issue #%d %s by %s: %s. %s",
 							IrcColorize(event.Repository.Name, ColorPurple),
@@ -269,7 +269,7 @@ func main() {
 					case "created":
 						url, err := ShortenGHUrl(event.Repository.HTMLURL)
 						if err != nil {
-							logger.Println(err)
+							logger.Println("Error shortening URL: " + err.Error())
 						}
 						ircmsgs <- fmt.Sprintf("%s %s %s: %s",
 							event.Sender.Login,
