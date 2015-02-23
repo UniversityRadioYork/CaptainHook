@@ -114,6 +114,7 @@ var act2color = map[string]MIRCColor{
 // available for anyone to use. Who knew? Form posts to git.io, gets a short
 // URL in a location header back. Cool.
 func ShortenGHUrl(url2shorten string) (shorturl string, err error) {
+	shorturl = url2shorten // Initially set the return url to this, in case of error
 	resp, err := http.PostForm("http://git.io", url.Values{"url": {url2shorten}})
 	if err != nil {
 		return
