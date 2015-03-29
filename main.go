@@ -168,17 +168,28 @@ func main() {
 		logger.Println(err)
 	}
 
+	connected := false
+
+	reconnect := func() {
+		for !connected {
+			logger.Println("Attempting reconnect...")
+			if err := irc.Connect(); err != nil {
+				logger.Println(err)
+			}
+			time.Sleep(1 * time.Minute)
+		}
+	}
+
 	irc.HandleFunc("connected", func(conn *goirc.Conn, line *goirc.Line) {
+		connected = true
 		logger.Println("Connected to " + conf.Server)
 		conn.Join(conf.Channel)
 	})
 
 	irc.HandleFunc("disconnected", func(conn *goirc.Conn, line *goirc.Line) {
-		logger.Println("Disconnected from server! Sleeping for 1 min and retrying")
-		time.Sleep(1 * time.Minute)
-		if err := irc.Connect(); err != nil {
-			logger.Println(err)
-		}
+		connected = false
+		logger.Println("Disconnected from server!")
+		go reconnect()
 	})
 
 	irc.HandleFunc("PRIVMSG", func(conn *goirc.Conn, line *goirc.Line) {
