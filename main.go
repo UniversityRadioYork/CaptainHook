@@ -96,7 +96,7 @@ type RepositoryEvent struct {
 
 // CaptainHook's config struct, TOML is decoded into this
 type Config struct {
-	Channel           string
+	Channels          []string
 	Server            string
 	Nick, Ident, Name string
 	HostPort          string
@@ -155,7 +155,7 @@ func main() {
 	if err := loadconfigfromfile(&conf, *confpath); err != nil {
 		logger.Fatal("Config load failed!" + err.Error())
 	}
-	ircmsgs := make(chan string, 10)
+	broadcastmsgs := make(chan string, 10)
 
 	sigs := make(chan os.Signal)
 	signal.Notify(sigs, syscall.SIGINT)
@@ -183,7 +183,9 @@ func main() {
 	irc.HandleFunc("connected", func(conn *goirc.Conn, line *goirc.Line) {
 		connected = true
 		logger.Println("Connected to " + conf.Server)
-		conn.Join(conf.Channel)
+		for _, c := range conf.Channels {
+			conn.Join(c)
+		}
 	})
 
 	irc.HandleFunc("disconnected", func(conn *goirc.Conn, line *goirc.Line) {
@@ -203,14 +205,18 @@ func main() {
 			case "reload", "restart", "reboot", "eat toml":
 				// Reload config
 			}
-			conn.Privmsg(conf.Channel, output)
+			channel := line.Args[0]
+			logger.Println("Sending " + output + " to " + channel)
+			conn.Privmsg(channel, output)
 		}
 	})
 
 	irc.HandleFunc("KICK", func(conn *goirc.Conn, line *goirc.Line) {
 		// This responds to all kicks at the moment... so, don't make any witty
 		// remarks, just rejoin in case it was us who got kicked.
-		conn.Join(conf.Channel)
+		for _, c := range conf.Channels {
+			conn.Join(c)
+		}
 	})
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -244,7 +250,7 @@ func main() {
 						if event.PRQ.Merged {
 							action = IrcColorize("Merged", ColorBlue)
 						}
-						ircmsgs <- fmt.Sprintf("[%s] PRQ #%d %s by %s: %s. %s",
+						broadcastmsgs <- fmt.Sprintf("[%s] PRQ #%d %s by %s: %s. %s",
 							IrcColorize(event.Repository.Name, ColorPurple),
 							event.PRQ.Number,
 							action,
@@ -263,7 +269,7 @@ func main() {
 						if err != nil {
 							logger.Println("Error shortening URL: " + err.Error())
 						}
-						ircmsgs <- fmt.Sprintf("[%s] Issue #%d %s by %s: %s. %s",
+						broadcastmsgs <- fmt.Sprintf("[%s] Issue #%d %s by %s: %s. %s",
 							IrcColorize(event.Repository.Name, ColorPurple),
 							event.Issue.Number,
 							IrcColorize(event.Action, act2color[event.Action]),
@@ -282,7 +288,7 @@ func main() {
 						if err != nil {
 							logger.Println("Error shortening URL: " + err.Error())
 						}
-						ircmsgs <- fmt.Sprintf("%s %s %s: %s",
+						broadcastmsgs <- fmt.Sprintf("%s %s %s: %s",
 							event.Sender.Login,
 							IrcColorize(event.Action, act2color[event.Action]),
 							IrcColorize(event.Repository.Name, ColorPurple),
@@ -298,9 +304,11 @@ func main() {
 	for {
 
 		select {
-		case msg := <-ircmsgs:
+		case msg := <-broadcastmsgs:
 			fmt.Println("Sending: " + msg)
-			irc.Privmsg(conf.Channel, msg)
+			for _, c := range conf.Channels {
+				irc.Privmsg(c, msg)
+			}
 		case <-sigs:
 			irc.Quit()
 			os.Exit(0)
