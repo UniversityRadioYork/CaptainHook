@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -17,10 +16,10 @@ import (
 	"strings"
 	"syscall"
 	"time"
-)
 
-import goirc "github.com/fluffle/goirc/client"
-import "github.com/BurntSushi/toml"
+	goirc "github.com/fluffle/goirc/client"
+	"github.com/koding/multiconfig"
+)
 
 // These are in string format as not having a leading zero can mess
 // up some clients when the string to colorize starts with a number.
@@ -94,13 +93,15 @@ type RepositoryEvent struct {
 	Repository Repo
 }
 
-// CaptainHook's config struct, TOML is decoded into this
+// CaptainHook's config struct
 type Config struct {
-	Channels          []string
-	Server            string
-	Nick, Ident, Name string
-	HostPort          string
-	GHSecret          string // The Github webhook secret
+	Channels string `required`
+	Server   string `default:"chat.freenode.net"`
+	Nick     string `default:"CaptHook"`
+	Ident    string `default:"capthook"`
+	Name     string `default:"<The></The> Captain"`
+	HostPort string `default:":4665"` // HTTP listen host and port
+	GHSecret string `required`        // The Github webhook secret
 }
 
 // Maps GitHub event strings (e.g. for PRQs, issues) to colors, for make
@@ -129,17 +130,6 @@ func ShortenGHUrl(url2shorten string) (shorturl string, err error) {
 	return
 }
 
-func loadconfigfromfile(conf *Config, conffile string) (err error) {
-	var rawconfig []byte
-	if rawconfig, err = ioutil.ReadFile(conffile); err != nil {
-		return
-	}
-	if _, err = toml.Decode(string(rawconfig), &conf); err != nil {
-		return
-	}
-	return
-}
-
 func CheckHMAC(message, reqMAC, key []byte) bool {
 	mac := hmac.New(sha1.New, key)
 	mac.Write(message)
@@ -149,10 +139,14 @@ func CheckHMAC(message, reqMAC, key []byte) bool {
 
 func main() {
 	logger := log.New(os.Stdout, "", log.Lshortfile)
-	confpath := flag.String("config", "config.toml", "The config file path")
-	flag.Parse()
-	var conf Config
-	if err := loadconfigfromfile(&conf, *confpath); err != nil {
+	var m *multiconfig.DefaultLoader
+	if _, err := os.Stat("config.toml"); os.IsNotExist(err) {
+		m = multiconfig.New()
+	} else {
+		m = multiconfig.NewWithPath("config.toml")
+	}
+	conf := new(Config)
+	if err := m.Load(conf); err != nil {
 		logger.Fatal("Config load failed!" + err.Error())
 	}
 	broadcastmsgs := make(chan string, 10)
@@ -183,7 +177,7 @@ func main() {
 	irc.HandleFunc("connected", func(conn *goirc.Conn, line *goirc.Line) {
 		connected = true
 		logger.Println("Connected to " + conf.Server)
-		for _, c := range conf.Channels {
+		for _, c := range strings.Split(conf.Channels, ",") {
 			conn.Join(c)
 		}
 	})
@@ -214,7 +208,7 @@ func main() {
 	irc.HandleFunc("KICK", func(conn *goirc.Conn, line *goirc.Line) {
 		// This responds to all kicks at the moment... so, don't make any witty
 		// remarks, just rejoin in case it was us who got kicked.
-		for _, c := range conf.Channels {
+		for _, c := range strings.Split(conf.Channels, ",") {
 			conn.Join(c)
 		}
 	})
@@ -306,7 +300,7 @@ func main() {
 		select {
 		case msg := <-broadcastmsgs:
 			fmt.Println("Sending: " + msg)
-			for _, c := range conf.Channels {
+			for _, c := range strings.Split(conf.Channels, ",") {
 				irc.Privmsg(c, msg)
 			}
 		case <-sigs:

@@ -3,7 +3,7 @@ Nick = "Capt'nHook"
 Ident = "hook"
 Name = "The Captain"
 Server = "chat.freenode.net:6667"
-Channels = ["#piracy"]
+Channels = "#piracy,#fluffybunnies"
 
 ## Webhooks
 HostPort = ":1337" # Where to listen for webhooks
