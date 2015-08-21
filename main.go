@@ -96,7 +96,7 @@ type RepositoryEvent struct {
 // CaptainHook's config struct
 type Config struct {
 	Channels string `required`
-	Server   string `default:"chat.freenode.net"`
+	Server   string `default:"chat.freenode.net:6667"`
 	Nick     string `default:"CaptHook"`
 	Ident    string `default:"capthook"`
 	Name     string `default:"<The></The> Captain"`
