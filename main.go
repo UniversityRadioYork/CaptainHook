@@ -15,10 +15,10 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
-	"time"
 
-	goirc "github.com/fluffle/goirc/client"
 	"github.com/koding/multiconfig"
+	"github.com/nickvanw/ircx"
+	"github.com/sorcix/irc"
 )
 
 // These are in string format as not having a leading zero can mess
@@ -137,63 +137,24 @@ func CheckHMAC(message, reqMAC, key []byte) bool {
 	return hmac.Equal(reqMAC, expectedMAC) // It's the return of the mac
 }
 
-func main() {
-	logger := log.New(os.Stdout, "", log.Lshortfile)
-	var m *multiconfig.DefaultLoader
-	if _, err := os.Stat("config.toml"); os.IsNotExist(err) {
-		m = multiconfig.New()
-	} else {
-		m = multiconfig.NewWithPath("config.toml")
-	}
-	conf := new(Config)
-	if err := m.Load(conf); err != nil {
-		logger.Fatal("Config load failed!" + err.Error())
-	}
-	broadcastmsgs := make(chan string, 10)
+var conf *Config
 
-	sigs := make(chan os.Signal)
-	signal.Notify(sigs, syscall.SIGINT)
-
-	ircconf := goirc.NewConfig(conf.Nick, conf.Ident, conf.Name)
-	ircconf.Server = conf.Server
-	irc := goirc.Client(ircconf)
-
-	connected := false
-
-	if err := irc.Connect(); err != nil {
-		logger.Println(err)
+func HandleConnected(s ircx.Sender, m *irc.Message, logger *log.Logger) {
+	logger.Println("Connected to " + conf.Server)
+	logger.Println("Joining " + conf.Channels)
+	for _, c := range strings.Split(conf.Channels, ",") {
+		s.Send(&irc.Message{
+			Command: irc.JOIN,
+			Params:  []string{c},
+		})
 	}
 
-	reconnect := func() {
-		for !connected {
-			logger.Println("Attempting reconnect...")
-			if err := irc.Connect(); err != nil {
-				logger.Println(err)
-			}
-			time.Sleep(1 * time.Minute)
-		}
-	}
+}
 
-	irc.HandleFunc("connected", func(conn *goirc.Conn, line *goirc.Line) {
-		connected = true
-		logger.Println("Connected to " + conf.Server)
-		for _, c := range strings.Split(conf.Channels, ",") {
-			if !strings.HasPrefix(c, "#") {
-				c = "#" + c
-			}
-			logger.Println("Joining " + c)
-			conn.Join(c)
-		}
-	})
-
-	irc.HandleFunc("disconnected", func(conn *goirc.Conn, line *goirc.Line) {
-		connected = false
-		logger.Println("Disconnected from server!")
-		go reconnect()
-	})
-
-	irc.HandleFunc("PRIVMSG", func(conn *goirc.Conn, line *goirc.Line) {
-		if strings.HasPrefix(line.Text(), conf.Nick+":") { // Someone mentioned us
+func HandlePrivMsg(s ircx.Sender, m *irc.Message, logger *log.Logger) {
+	logger.Println(m)
+	/*
+		if strings.HasPrefix(m), conf.Nick+":") { // Someone mentioned us
 			var output string
 			mention := strings.TrimSpace(
 				strings.TrimPrefix(line.Text(), conf.Nick+":"))
@@ -207,15 +168,44 @@ func main() {
 			logger.Println("Sending " + output + " to " + channel)
 			conn.Privmsg(channel, output)
 		}
+	*/
+}
+
+func main() {
+	logger := log.New(os.Stdout, "", log.Lshortfile)
+	conf = new(Config)
+	var m *multiconfig.DefaultLoader
+	if _, err := os.Stat("config.toml"); os.IsNotExist(err) {
+		m = multiconfig.New()
+	} else {
+		m = multiconfig.NewWithPath("config.toml")
+	}
+	if err := m.Load(conf); err != nil {
+		logger.Fatal("Config load failed!" + err.Error())
+	}
+	broadcastmsgs := make(chan string, 10)
+
+	sigs := make(chan os.Signal)
+	signal.Notify(sigs, syscall.SIGINT)
+
+	bot := ircx.Classic(conf.Server, conf.Nick)
+	if err := bot.Connect(); err != nil {
+		logger.Panicln("Unable to dial IRC Server ", err)
+	}
+
+	bot.HandleFunc(irc.RPL_WELCOME, func(s ircx.Sender, m *irc.Message) {
+		HandleConnected(s, m, logger)
 	})
 
-	irc.HandleFunc("KICK", func(conn *goirc.Conn, line *goirc.Line) {
-		// This responds to all kicks at the moment... so, don't make any witty
-		// remarks, just rejoin in case it was us who got kicked.
-		for _, c := range strings.Split(conf.Channels, ",") {
-			conn.Join(c)
-		}
+	bot.HandleFunc(irc.PING, func(s ircx.Sender, m *irc.Message) {
+		s.Send(&irc.Message{
+			Command:  irc.PONG,
+			Params:   m.Params,
+			Trailing: m.Trailing,
+		})
 	})
+
+	go bot.HandleLoop()
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		body, err := ioutil.ReadAll(r.Body)
@@ -300,16 +290,22 @@ func main() {
 	})
 	go http.ListenAndServe(conf.HostPort, nil)
 	for {
-
 		select {
 		case msg := <-broadcastmsgs:
 			fmt.Println("Sending: " + msg)
 			for _, c := range strings.Split(conf.Channels, ",") {
-				irc.Privmsg(c, msg)
+				bot.Sender.Send(&irc.Message{
+					Command:  irc.PRIVMSG,
+					Params:   []string{c},
+					Trailing: ":" + msg,
+				})
 			}
 		case <-sigs:
-			irc.Quit()
-			os.Exit(0)
+			logger.Println("Sending quit")
+			bot.Sender.Send(&irc.Message{
+				Command:  irc.QUIT,
+				Trailing: ":RIP in pepparoni",
+			})
 		}
 	}
 }
