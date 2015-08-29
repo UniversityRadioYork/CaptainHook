@@ -99,7 +99,7 @@ type Config struct {
 	Server   string `default:"chat.freenode.net:6667"`
 	Nick     string `default:"CaptHook"`
 	Ident    string `default:"capthook"`
-	Name     string `default:"<The></The> Captain"`
+	Name     string `default:"The Captain"`
 	HostPort string `default:":4665"` // HTTP listen host and port
 	GHSecret string `required`        // The Github webhook secret
 }
@@ -178,6 +178,10 @@ func main() {
 		connected = true
 		logger.Println("Connected to " + conf.Server)
 		for _, c := range strings.Split(conf.Channels, ",") {
+			if !strings.HasPrefix(c, "#") {
+				c = "#" + c
+			}
+			logger.Println("Joining " + c)
 			conn.Join(c)
 		}
 	})
