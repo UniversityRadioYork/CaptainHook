@@ -158,11 +158,11 @@ func main() {
 	ircconf.Server = conf.Server
 	irc := goirc.Client(ircconf)
 
+	connected := false
+
 	if err := irc.Connect(); err != nil {
 		logger.Println(err)
 	}
-
-	connected := false
 
 	reconnect := func() {
 		for !connected {
