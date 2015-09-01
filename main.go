@@ -295,16 +295,16 @@ func main() {
 			fmt.Println("Sending: " + msg)
 			for _, c := range strings.Split(conf.Channels, ",") {
 				bot.Sender.Send(&irc.Message{
-					Command:  irc.PRIVMSG,
+					Command:  irc.NOTICE,
 					Params:   []string{c},
-					Trailing: ":" + msg,
+					Trailing: msg,
 				})
 			}
 		case <-sigs:
 			logger.Println("Sending quit")
 			bot.Sender.Send(&irc.Message{
 				Command:  irc.QUIT,
-				Trailing: ":RIP in pepparoni",
+				Trailing: "RIP in pepparoni",
 			})
 		}
 	}
