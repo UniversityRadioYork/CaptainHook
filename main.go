@@ -101,7 +101,8 @@ type Config struct {
 	Ident    string `default:"capthook"`
 	Name     string `default:"The Captain"`
 	HostPort string `default:":4665"` // HTTP listen host and port
-	GHSecret string `required`        // The Github webhook secret
+	Join     bool   `default:"true"`
+	GHSecret string `required` // The Github webhook secret
 }
 
 // Maps GitHub event strings (e.g. for PRQs, issues) to colors, for make
@@ -141,12 +142,14 @@ var conf *Config
 
 func HandleConnected(s ircx.Sender, m *irc.Message, logger *log.Logger) {
 	logger.Println("Connected to " + conf.Server)
-	logger.Println("Joining " + conf.Channels)
-	for _, c := range strings.Split(conf.Channels, ",") {
-		s.Send(&irc.Message{
-			Command: irc.JOIN,
-			Params:  []string{c},
-		})
+	if conf.Join {
+		logger.Println("Joining " + conf.Channels)
+		for _, c := range strings.Split(conf.Channels, ",") {
+			s.Send(&irc.Message{
+				Command: irc.JOIN,
+				Params:  []string{c},
+			})
+		}
 	}
 
 }
@@ -190,7 +193,7 @@ func main() {
 
 	bot := ircx.Classic(conf.Server, conf.Nick)
 	if err := bot.Connect(); err != nil {
-		logger.Panicln("Unable to dial IRC Server ", err)
+		logger.Fatalln("Unable to dial IRC Server ", err)
 	}
 
 	bot.HandleFunc(irc.RPL_WELCOME, func(s ircx.Sender, m *irc.Message) {
